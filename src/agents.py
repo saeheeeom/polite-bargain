@@ -20,7 +20,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 # Which provider each model name routes to
-GEMINI_MODELS = {"gemini-2.5-flash", "gemini-2.5-flash-lite"}
+GEMINI_MODELS = {"gemini-3.6-flash", "gemini-3.6-flash-lite"}
 OPENROUTER_MODELS = {"qwen/qwen3-coder:free", "meta-llama/llama-3.3-70b-instruct:free"}
 
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         "You are a buyer in a price negotiation for a used bicycle listed at $100. "
         "Your target price is $70." + AGENT_RESPONSE_INSTRUCTIONS
     )
-    raw = call_agent("gemini-2.5-flash", test_system_prompt, history=[], self_role="buyer")
+    raw = call_agent("gemini-3.6-flash", test_system_prompt, history=[], self_role="buyer")
     print("Raw response:", raw)
     parsed = parse_agent_response(raw)
     print("Parsed:", parsed)

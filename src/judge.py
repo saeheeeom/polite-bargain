@@ -37,7 +37,7 @@ Transcript:
 {transcript}
 """
 
-JUDGE_MODEL = "qwen/qwen3-coder:free"  # different provider from the default Gemini negotiators
+JUDGE_MODEL = "google/gemma-4-26b-a4b-it:free"  # different provider from the default Gemini negotiators
 
 
 def format_transcript(turns: list[dict]) -> str:

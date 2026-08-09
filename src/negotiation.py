@@ -70,8 +70,8 @@ def run_negotiation(
     condition: Condition,
     scenario_id: str,
     repetition: int,
-    buyer_model: str = "gemini-2.5-flash",
-    seller_model: str = "gemini-2.5-flash",
+    buyer_model: str = "gemini-3.6-flash",
+    seller_model: str = "gemini-3.6-flash",
 ) -> NegotiationResult:
     buyer_prompt = build_system_prompt("buyer", scenario, condition)
     seller_prompt = build_system_prompt("seller", scenario, condition)

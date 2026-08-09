@@ -34,7 +34,19 @@ def sample_scenarios(n_scenarios: int = N_SCENARIOS, seed: int = SEED) -> list[d
     across the 6 item categories.
     """
     random.seed(seed)
-    ds = load_dataset("stanfordnlp/craigslist_bargains", split="train")
+    # NOTE: stanfordnlp/craigslist_bargains uses a legacy loading-script format that
+    # recent `datasets` versions refuse to execute. Hugging Face auto-converts most
+    # public datasets to Parquet under the "refs/convert/parquet" ref — use that
+    # instead of the default branch to sidestep the script entirely.
+    try:
+        ds = load_dataset("stanfordnlp/craigslist_bargains", split="train",
+                           revision="refs/convert/parquet")
+    except Exception as e:
+        print(f"Parquet-revision load failed ({e}); falling back to the default "
+              f"script-based load. If this also fails with a 'Dataset scripts are "
+              f"no longer supported' error, downgrade with: "
+              f"pip install 'datasets==2.19.0' and retry.")
+        ds = load_dataset("stanfordnlp/craigslist_bargains", split="train")
 
     # TODO once run locally: confirm `items.Category` is lowercase and matches
     # CATEGORIES exactly — adjust the filter below if not.

@@ -36,7 +36,7 @@ def translate_scenario(title: str, description: str) -> dict:
     import google.generativeai as genai
 
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-3.6-flash")
     response = model.generate_content(TRANSLATE_PROMPT.format(title=title, description=description))
     match = re.search(r"\{.*\}", response.text, re.DOTALL)
     if not match:
