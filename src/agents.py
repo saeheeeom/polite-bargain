@@ -50,18 +50,30 @@ def _history_to_messages(system_prompt: str, history: list[dict], self_role: str
 
 
 def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    gm = genai.GenerativeModel(model, system_instruction=system_prompt)
-    chat_history = [
-        {"role": "model" if t["role"] == self_role else "user", "parts": [t["content"]]}
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    contents = [
+        types.Content(
+            role=("model" if t["role"] == self_role else "user"),
+            parts=[types.Part(text=t["content"])],
+        )
         for t in history
     ]
-    chat = gm.start_chat(history=chat_history)
-    response = chat.send_message(
-        "Continue the negotiation with your next turn.",
-        generation_config={"temperature": temperature},
+    contents.append(types.Content(
+        role="user",
+        parts=[types.Part(text="Continue the negotiation with your next turn.")],
+    ))
+
+    response = client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=temperature,
+        ),
     )
     return response.text
 

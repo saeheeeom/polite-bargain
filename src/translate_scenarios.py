@@ -31,17 +31,34 @@ Description: {description}
 """
 
 
-def translate_scenario(title: str, description: str) -> dict:
+def translate_scenario(title: str, description: str, max_retries: int = 4) -> dict:
     import re
-    import google.generativeai as genai
+    import time
+    from google import genai
+    from google.genai import errors
 
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-3.6-flash")
-    response = model.generate_content(TRANSLATE_PROMPT.format(title=title, description=description))
-    match = re.search(r"\{.*\}", response.text, re.DOTALL)
-    if not match:
-        raise ValueError(f"No JSON found in translation response: {response.text!r}")
-    return json.loads(match.group(0))
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=TRANSLATE_PROMPT.format(title=title, description=description),
+            )
+            match = re.search(r"\{.*\}", response.text, re.DOTALL)
+            if not match:
+                raise ValueError(f"No JSON found in translation response: {response.text!r}")
+            return json.loads(match.group(0))
+        except errors.ServerError as e:
+            # 503 = transient overload on Google's end, not a bug in this code — retry with backoff
+            wait = 2 ** attempt  # 1, 2, 4, 8 seconds
+            print(f"  Server error (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {e}")
+            time.sleep(wait)
+    raise RuntimeError(f"Failed to translate {title!r} after {max_retries} retries")
+
+
+def _save(scenarios: list[dict]) -> None:
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(scenarios, f, ensure_ascii=False, indent=2)
 
 
 def main():
@@ -55,9 +72,7 @@ def main():
         s["title_ko"] = translated["title_ko"]
         s["description_ko"] = translated["description_ko"]
         print(f"Translated: {s['title']} -> {s['title_ko']}")
-
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(scenarios, f, ensure_ascii=False, indent=2)
+        _save(scenarios)  # save after EVERY translation, not just at the end
 
     print(f"\nDone. Now do the spot-check pass: read through data/scenarios.json "
           f"and fix any title_ko/description_ko that reads unnaturally, "
