@@ -80,6 +80,7 @@ def main():
                     if out_path.exists():
                         pbar.update(1)
                         continue  # resume-safe: skip already-completed runs
+                    print(f"Running {scenario_id} | {condition.id} | rep {rep + 1}/{N_REPETITIONS}")
                     result = run_negotiation(
                         scenario=scenario, condition=condition,
                         scenario_id=scenario_id, repetition=rep,
