@@ -38,10 +38,10 @@ def summarize_hf_split(split_data: Any) -> dict:
 
     categories: list[str] = []
     prices: list[float] = []
-    title_lengths: list[int] = []
-    description_lengths: list[int] = []
-    turn_counts: list[int] = []
-    utterance_lengths: list[int] = []
+    title_lengths: list[float] = []
+    description_lengths: list[float] = []
+    turn_counts: list[float] = []
+    utterance_lengths: list[float] = []
     intent_counts: Counter[str] = Counter()
     accept_count = 0
 
@@ -237,7 +237,7 @@ def summarize_transcripts(transcripts: list[dict]) -> dict:
     }
 
 
-def print_example_dialog(example: dict) -> None:
+def print_example_dialog(example: dict[str, Any] | None) -> None:
     if not example:
         print("No example dialog available.")
         return
