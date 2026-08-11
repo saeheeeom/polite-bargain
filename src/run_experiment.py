@@ -20,6 +20,7 @@ DATA_PATH = Path(__file__).parent.parent / "data" / "scenarios.json"
 RESULTS_DIR = Path(__file__).parent.parent / "results" / "transcripts"
 
 AVG_TURNS_ESTIMATE = 9  # from CraigslistBargain's reported average dialogue length
+GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5  # observed live limit for gemini-3.6-flash on the free tier in this project
 
 
 def load_scenarios(limit: int | None = None) -> list[dict]:
@@ -31,16 +32,18 @@ def load_scenarios(limit: int | None = None) -> list[dict]:
 def estimate_calls(n_scenarios: int, n_conditions: int, n_repetitions: int) -> dict:
     n_negotiations = n_scenarios * n_conditions * n_repetitions
     negotiation_calls = n_negotiations * AVG_TURNS_ESTIMATE
-    judge_calls = n_negotiations  # one per finished transcript
+    judge_calls = n_negotiations  # one judge call per finished transcript; this uses a separate non-Gemini model
     total = negotiation_calls + judge_calls
-    # Gemini free tier: ~1500 requests/day
-    est_days_gemini = negotiation_calls / 1500
+    # Gemini is rate-limited per minute here, so this is a minimum serialized wall-time estimate.
+    est_minutes_gemini = negotiation_calls / GEMINI_REQUESTS_PER_MINUTE_LIMIT
     return {
         "n_negotiations": n_negotiations,
         "negotiation_calls": negotiation_calls,
         "judge_calls": judge_calls,
         "total_calls": total,
-        "est_days_on_gemini_free_tier": round(est_days_gemini, 1),
+        "gemini_rpm_limit": GEMINI_REQUESTS_PER_MINUTE_LIMIT,
+        "est_minutes_on_gemini_free_tier": round(est_minutes_gemini, 1),
+        "est_hours_on_gemini_free_tier": round(est_minutes_gemini / 60, 2),
     }
 
 
@@ -58,7 +61,9 @@ def main():
     print(f"Estimated negotiations: {est['n_negotiations']}")
     print(f"Estimated total API calls: {est['total_calls']} "
           f"(~{est['negotiation_calls']} negotiation + {est['judge_calls']} judge)")
-    print(f"Estimated days on Gemini free tier alone: {est['est_days_on_gemini_free_tier']}")
+    print(f"Estimated Gemini free-tier cap used for planning: {est['gemini_rpm_limit']} requests/minute")
+    print(f"Estimated minimum Gemini wall time: {est['est_minutes_on_gemini_free_tier']} minutes "
+            f"(~{est['est_hours_on_gemini_free_tier']} hours) for negotiation calls only")
 
     if args.dry_run:
         print("\n[dry run] No API calls made.")

@@ -11,16 +11,25 @@ experiment. A minimal smoke test is at the bottom of this file.
 import json
 import os
 import re
+import time
 from pathlib import Path
+from threading import Lock
 
 from dotenv import load_dotenv
+
+
+GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5
+GEMINI_MIN_SECONDS_BETWEEN_CALLS = 60 / GEMINI_REQUESTS_PER_MINUTE_LIMIT
+
+_gemini_call_lock = Lock()
+_gemini_next_allowed_time = 0.0
 
 
 def _load_api_keys() -> None:
     project_root = Path(__file__).resolve().parent.parent
     candidates = [
         project_root / ".env",                 # standard project-level .env file if present
-        project_root / ".env" / "config.yml",  # your current config file
+        project_root / ".env" / "config.yml",  # current project config file in this repo
         project_root / ".env" / "config.yaml",
         project_root / "config.yml",
     ]
@@ -83,15 +92,40 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
         parts=[types.Part(text="Continue the negotiation with your next turn.")],
     ))
 
-    response = client.models.generate_content(
-        model=model,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=temperature,
-        ),
-    )
-    return response.text
+    def _wait_for_gemini_slot() -> None:
+        global _gemini_next_allowed_time
+        with _gemini_call_lock:
+            now = time.monotonic()
+            sleep_for = _gemini_next_allowed_time - now
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+            _gemini_next_allowed_time = time.monotonic() + GEMINI_MIN_SECONDS_BETWEEN_CALLS
+
+    def _is_rate_limit_error(exc: Exception) -> bool:
+        status_code = getattr(exc, "status_code", None)
+        return status_code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+
+    last_error: Exception | None = None
+    for attempt in range(6):
+        _wait_for_gemini_slot()
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=temperature,
+                ),
+            )
+            return response.text
+        except Exception as exc:  # google.genai raises provider-specific errors here
+            last_error = exc
+            if not _is_rate_limit_error(exc) or attempt == 5:
+                raise
+            retry_delay = min(30.0, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (attempt + 1))
+            time.sleep(retry_delay)
+
+    raise last_error if last_error is not None else RuntimeError("Gemini request failed without a response")
 
 
 def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
