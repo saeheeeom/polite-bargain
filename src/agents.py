@@ -11,10 +11,26 @@ experiment. A minimal smoke test is at the bottom of this file.
 import json
 import os
 import re
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+
+def _load_api_keys() -> None:
+    project_root = Path(__file__).resolve().parent.parent
+    candidates = [
+        project_root / ".env",                 # standard project-level .env file if present
+        project_root / ".env" / "config.yml",  # your current config file
+        project_root / ".env" / "config.yaml",
+        project_root / "config.yml",
+    ]
+    for path in candidates:
+        if path.exists():
+            if load_dotenv(dotenv_path=path, override=False):
+                break
+
+
+_load_api_keys()
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
