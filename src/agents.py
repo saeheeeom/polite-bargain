@@ -46,7 +46,11 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 # Which provider each model name routes to
 GEMINI_MODELS = {"gemini-3.6-flash", "gemini-3.6-flash-lite"}
-OPENROUTER_MODELS = {"qwen/qwen3-coder:free", "meta-llama/llama-3.3-70b-instruct:free"}
+OPENROUTER_MODELS = {
+    "qwen/qwen3-coder:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-26b-a4b-it:free",
+}
 
 
 def call_agent(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float = 0.2) -> str:
