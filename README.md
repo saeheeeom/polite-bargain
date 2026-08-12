@@ -43,6 +43,7 @@ python -m src.data_loader
 # 2. Run the full experiment (this is the expensive step — check call-count estimate first!)
 python -m src.run_experiment --dry-run     # prints how many calls this will make, makes no API calls
 python -m src.run_experiment                # actually runs it
+python -m src.run_experiment --provider gemini  # switch buyer/seller negotiation calls back to Gemini
 
 # 3. Judge coding pass (after negotiations are done)
 python -m src.judge

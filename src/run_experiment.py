@@ -5,6 +5,7 @@ Usage:
     python -m src.run_experiment --dry-run   # estimate call count and time, no API calls
     python -m src.run_experiment              # actually run it
     python -m src.run_experiment --limit 2     # only run 2 scenarios (for smoke testing)
+    python -m src.run_experiment --provider gemini  # switch back to Gemini for negotiations
 """
 import argparse
 import json
@@ -21,6 +22,13 @@ RESULTS_DIR = Path(__file__).parent.parent / "results" / "transcripts"
 
 AVG_TURNS_ESTIMATE = 9  # from CraigslistBargain's reported average dialogue length
 GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5  # observed live limit for gemini-3.6-flash on the free tier in this project
+DEFAULT_NEGOTIATION_MODELS = {
+    "gemini": ("gemini-3.6-flash", "gemini-3.6-flash"),
+    "openrouter": (
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
+    ),
+}
 
 
 def load_scenarios(limit: int | None = None) -> list[dict]:
@@ -47,23 +55,44 @@ def estimate_calls(n_scenarios: int, n_conditions: int, n_repetitions: int) -> d
     }
 
 
+def resolve_negotiation_models(provider: str) -> tuple[str, str]:
+    try:
+        return DEFAULT_NEGOTIATION_MODELS[provider]
+    except KeyError as exc:
+        raise ValueError(f"Unknown provider: {provider}") from exc
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="Estimate cost, don't call any APIs")
     parser.add_argument("--limit", type=int, default=None, help="Only use the first N scenarios (for smoke testing)")
+    parser.add_argument(
+        "--provider",
+        choices=sorted(DEFAULT_NEGOTIATION_MODELS),
+        default="openrouter",
+        help="Which provider to use for buyer/seller negotiation calls",
+    )
     args = parser.parse_args()
 
     scenarios = load_scenarios(limit=args.limit)
     conditions = all_conditions()
+    buyer_model, seller_model = resolve_negotiation_models(args.provider)
 
     est = estimate_calls(len(scenarios), len(conditions), N_REPETITIONS)
     print(f"Scenarios: {len(scenarios)} | Conditions: {len(conditions)} | Repetitions: {N_REPETITIONS}")
+    print(f"Negotiation provider: {args.provider} ({buyer_model})")
     print(f"Estimated negotiations: {est['n_negotiations']}")
     print(f"Estimated total API calls: {est['total_calls']} "
           f"(~{est['negotiation_calls']} negotiation + {est['judge_calls']} judge)")
-    print(f"Estimated Gemini free-tier cap used for planning: {est['gemini_rpm_limit']} requests/minute")
-    print(f"Estimated minimum Gemini wall time: {est['est_minutes_on_gemini_free_tier']} minutes "
-            f"(~{est['est_hours_on_gemini_free_tier']} hours) for negotiation calls only")
+    if args.provider == "gemini":
+        print(f"Estimated Gemini free-tier cap used for planning: {est['gemini_rpm_limit']} requests/minute")
+        print(f"Estimated minimum Gemini wall time: {est['est_minutes_on_gemini_free_tier']} minutes "
+              f"(~{est['est_hours_on_gemini_free_tier']} hours) for negotiation calls only")
+    else:
+        print(
+            "Wall-time estimate is still based on the Gemini free-tier cap used in the study design; "
+            "OpenRouter timing will depend on its own rate limits."
+        )
 
     if args.dry_run:
         print("\n[dry run] No API calls made.")
@@ -84,6 +113,8 @@ def main():
                     result = run_negotiation(
                         scenario=scenario, condition=condition,
                         scenario_id=scenario_id, repetition=rep,
+                        buyer_model=buyer_model,
+                        seller_model=seller_model,
                     )
                     with open(out_path, "w", encoding="utf-8") as f:
                         json.dump(asdict(result), f, ensure_ascii=False, indent=2)
