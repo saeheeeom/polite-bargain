@@ -45,6 +45,14 @@ python -m src.run_experiment --dry-run     # prints how many calls this will mak
 python -m src.run_experiment                # actually runs it
 python -m src.run_experiment --provider gemini  # switch buyer/seller negotiation calls back to Gemini
 
+# 2a. Smoke-test the translation pipeline
+python -m src.translate_scenarios --dry-run --limit 1   # no API calls, just report what would be translated
+python -m src.translate_scenarios --limit 1            # translate one untranslated scenario and save it
+
+# 2b. Smoke-test the judge pipeline on saved transcripts
+python -m src.judge results/transcripts --dry-run --limit 1   # no API calls, just report what would be judged
+python -m src.judge results/transcripts --limit 1             # judge one transcript and save *_judged.json
+
 # 3. Judge coding pass (after negotiations are done)
 python -m src.judge
 ```

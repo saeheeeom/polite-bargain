@@ -12,6 +12,7 @@ needed), then you do the lightweight spot-check pass described in the
 research statement (read through a handful per category, fix anything that
 reads unnaturally).
 """
+import argparse
 import json
 import os
 from pathlib import Path
@@ -69,20 +70,55 @@ def _save(scenarios: list[dict]) -> None:
         json.dump(scenarios, f, ensure_ascii=False, indent=2)
 
 
-def main():
+def _load_scenarios() -> list[dict]:
     with open(DATA_PATH, encoding="utf-8") as f:
-        scenarios = json.load(f)
+        return json.load(f)
 
-    for s in scenarios:
-        if "title_ko" in s:
-            continue  # already translated, resume-safe
-        translated = translate_scenario(s["title"], s["description"])
-        s["title_ko"] = translated["title_ko"]
-        s["description_ko"] = translated["description_ko"]
-        print(f"Translated: {s['title']} -> {s['title_ko']}")
+
+def translate_pending_scenarios(
+    limit: int | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+) -> int:
+    scenarios = _load_scenarios()
+    pending_indices = [i for i, s in enumerate(scenarios) if force or "title_ko" not in s]
+    selected_indices = pending_indices[:limit] if limit is not None else pending_indices
+
+    print(
+        f"Scenarios total: {len(scenarios)} | already translated: {len(scenarios) - len(pending_indices)} | "
+        f"pending: {len(pending_indices)} | selected: {len(selected_indices)}"
+    )
+
+    if dry_run:
+        print("[dry run] No API calls made.")
+        return 0
+
+    translated_count = 0
+    for index in selected_indices:
+        scenario = scenarios[index]
+        translated = translate_scenario(scenario["title"], scenario["description"])
+        scenario["title_ko"] = translated["title_ko"]
+        scenario["description_ko"] = translated["description_ko"]
+        print(f"Translated: {scenario['title']} -> {scenario['title_ko']}")
         _save(scenarios)  # save after EVERY translation, not just at the end
+        translated_count += 1
 
-    print(f"\nDone. Now do the spot-check pass: read through data/scenarios.json "
+    return translated_count
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=None, help="Only translate the first N untranslated scenarios")
+    parser.add_argument("--dry-run", action="store_true", help="Report how many scenarios would be translated, no API calls")
+    parser.add_argument("--force", action="store_true", help="Translate the selected scenarios even if title_ko already exists")
+    args = parser.parse_args()
+
+    translated_count = translate_pending_scenarios(limit=args.limit, dry_run=args.dry_run, force=args.force)
+
+    if args.dry_run:
+        return
+
+    print(f"\nDone. Translated {translated_count} scenario(s). Now do the spot-check pass: read through data/scenarios.json "
           f"and fix any title_ko/description_ko that reads unnaturally, "
           f"especially checking a couple per category as planned in the research statement.")
 

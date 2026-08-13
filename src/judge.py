@@ -8,8 +8,10 @@ negotiation and labels every turn in a single call, to keep coding cost low.
 Per the research statement, use a DIFFERENT model as judge than whichever
 model(s) generated the negotiation, to avoid a model evaluating its own output.
 """
+import argparse
 import json
 import re
+from pathlib import Path
 
 from src.agents import call_agent
 
@@ -58,3 +60,83 @@ def code_transcript(turns: list[dict], judge_model: str = JUDGE_MODEL) -> list[d
         print(f"WARNING: judge coded {len(coded)} turns but transcript has {len(turns)} — "
               f"check for parsing issues before trusting this result")
     return coded
+
+
+def _load_transcript(path: Path) -> dict:
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _default_output_path(input_path: Path) -> Path:
+    return input_path.with_name(f"{input_path.stem}_judged{input_path.suffix}")
+
+
+def _write_judged_transcript(input_path: Path, transcript: dict, coded_turns: list[dict], judge_model: str) -> Path:
+    output_path = _default_output_path(input_path)
+    payload = {
+        "source_transcript": input_path.name,
+        "judge_model": judge_model,
+        "scenario_id": transcript.get("scenario_id"),
+        "condition_id": transcript.get("condition_id"),
+        "repetition": transcript.get("repetition"),
+        "coded_turns": coded_turns,
+    }
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return output_path
+
+
+def judge_path(path: Path, judge_model: str = JUDGE_MODEL, dry_run: bool = False) -> list[dict] | None:
+    transcript = _load_transcript(path)
+    turns = transcript["turns"]
+
+    print(f"Transcript: {path.name} | turns: {len(turns)} | judge model: {judge_model}")
+    if dry_run:
+        print("[dry run] No API calls made.")
+        return None
+
+    coded_turns = code_transcript(turns, judge_model=judge_model)
+    output_path = _write_judged_transcript(path, transcript, coded_turns, judge_model)
+    print(f"Saved judged transcript -> {output_path}")
+    print(json.dumps(coded_turns, ensure_ascii=False, indent=2))
+    return coded_turns
+
+
+def _iter_transcript_paths(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+    return sorted(
+        candidate for candidate in path.glob("*.json")
+        if not candidate.name.endswith("_judged.json")
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=Path(__file__).parent.parent / "results" / "transcripts",
+        type=Path,
+        help="Transcript JSON file or directory of transcript JSON files",
+    )
+    parser.add_argument("--limit", type=int, default=None, help="Only judge the first N transcripts in a directory")
+    parser.add_argument("--dry-run", action="store_true", help="Report what would be judged, no API calls")
+    parser.add_argument("--model", default=JUDGE_MODEL, help="Judge model slug to use")
+    args = parser.parse_args()
+
+    transcript_paths = _iter_transcript_paths(args.path)
+    if args.limit is not None:
+        transcript_paths = transcript_paths[:args.limit]
+
+    if not transcript_paths:
+        print(f"No transcript JSON files found at {args.path}")
+        return
+
+    print(f"Found {len(transcript_paths)} transcript(s) to judge")
+    for transcript_path in transcript_paths:
+        judge_path(transcript_path, judge_model=args.model, dry_run=args.dry_run)
+
+
+if __name__ == "__main__":
+    main()

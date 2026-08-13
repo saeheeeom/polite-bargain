@@ -16,6 +16,7 @@ from pathlib import Path
 from threading import Lock
 
 from dotenv import load_dotenv
+from openai import RateLimitError
 
 
 GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5
@@ -137,10 +138,27 @@ def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_r
 
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
     messages = _history_to_messages(system_prompt, history, self_role)
-    completion = client.chat.completions.create(
-        model=model, messages=messages, temperature=temperature,
-    )
-    return completion.choices[0].message.content
+
+    def _retry_delay_from_error(exc: Exception, fallback_seconds: float) -> float:
+        retry_after = re.search(r"retry_after_seconds(?:_raw)?['\"]?:\s*(\d+)", str(exc))
+        if retry_after:
+            return float(retry_after.group(1))
+        return fallback_seconds
+
+    last_error: Exception | None = None
+    for attempt in range(4):
+        try:
+            completion = client.chat.completions.create(
+                model=model, messages=messages, temperature=temperature,
+            )
+            return completion.choices[0].message.content
+        except RateLimitError as exc:
+            last_error = exc
+            if attempt == 3:
+                raise
+            time.sleep(_retry_delay_from_error(exc, fallback_seconds=5.0 * (attempt + 1)))
+
+    raise last_error if last_error is not None else RuntimeError("OpenRouter request failed without a response")
 
 
 AGENT_RESPONSE_INSTRUCTIONS = """
