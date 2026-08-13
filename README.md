@@ -13,6 +13,7 @@ cp .env.example .env       # then fill in your API keys
 ```
 
 You'll need:
+
 - `GEMINI_API_KEY` — free tier at https://ai.google.dev
 - `OPENROUTER_API_KEY` — https://openrouter.ai (free tier + optional $10 top-up for higher limits)
 
@@ -47,7 +48,11 @@ python -m src.run_experiment --provider gemini  # switch buyer/seller negotiatio
 
 # 2a. Smoke-test the translation pipeline
 python -m src.translate_scenarios --dry-run --limit 1   # no API calls, just report what would be translated
-python -m src.translate_scenarios --limit 1            # translate one untranslated scenario and save it
+python -m src.translate_scenarios --limit 1            # translate the first untranslated scenario and save it
+
+# Use --force only when you want to re-run translation on a scenario that already has title_ko/description_ko,
+# for example when smoke-testing a specific item instead of skipping already-translated rows.
+python -m src.translate_scenarios --limit 1 --force
 
 # 2b. Smoke-test the judge pipeline on saved transcripts
 python -m src.judge results/transcripts --dry-run --limit 1   # no API calls, just report what would be judged
@@ -60,11 +65,11 @@ python -m src.judge
 ## Status
 
 - [ ] `data_loader.py` — needs to be run against live Hugging Face access (not available in this sandbox — run locally)
-- [x] `conditions.py` — condition grid defined
-- [x] `translations.py` — EN phrasings drafted; **KO translations are placeholders, need your review** (search for `# TODO: verify Korean`)
-- [x] `agents.py` — API call logic (Gemini + OpenRouter), untested against live APIs in this sandbox
-- [x] `negotiation.py` — turn loop, structured action parsing, stopping rule
-- [x] `judge.py` — FTA/politeness coding prompt + parsing
-- [x] `run_experiment.py` — orchestration script with `--dry-run` call-count estimator
+- [X] `conditions.py` — condition grid defined
+- [X] `translations.py` — EN phrasings drafted; **KO translations are placeholders, need your review** (search for `# TODO: verify Korean`)
+- [X] `agents.py` — API call logic (Gemini + OpenRouter), untested against live APIs in this sandbox
+- [X] `negotiation.py` — turn loop, structured action parsing, stopping rule
+- [X] `judge.py` — FTA/politeness coding prompt + parsing
+- [X] `run_experiment.py` — orchestration script with `--dry-run` call-count estimator
 
 Everything has been checked for logical/syntax correctness with mock data, but **none of it has been run against a live API key** — that has to happen on your machine.
