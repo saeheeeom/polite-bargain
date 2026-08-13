@@ -18,7 +18,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+project_root = Path(__file__).resolve().parent.parent
+for candidate in (
+    project_root / ".env",
+    project_root / ".env" / "config.yml",
+    project_root / ".env" / "config.yaml",
+    project_root / "config.yml",
+):
+    if candidate.exists() and load_dotenv(dotenv_path=candidate, override=False):
+        break
 
 DATA_PATH = Path(__file__).parent.parent / "data" / "scenarios.json"
 

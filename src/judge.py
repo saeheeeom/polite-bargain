@@ -28,8 +28,8 @@ politeness theory. For EACH turn in the transcript below, determine:
 
 Respond with ONLY a JSON array, one object per turn, in this shape:
 [
-  {"turn": 0, "role": "seller", "is_fta": true, "strategy": "bald_on_record"},
-  {"turn": 1, "role": "buyer", "is_fta": false, "strategy": null},
+    {{"turn": 0, "role": "seller", "is_fta": true, "strategy": "bald_on_record"}},
+    {{"turn": 1, "role": "buyer", "is_fta": false, "strategy": null}},
   ...
 ]
 
