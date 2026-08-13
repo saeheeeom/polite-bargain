@@ -1,0 +1,69 @@
+{
+  "source_transcript": "E:\\polite-bargain\\results\\transcripts\\scenario-00_en-none-cooperative_rep0.json",
+  "judge_model": "google/gemma-4-26b-a4b-it:free",
+  "scenario_id": "scenario-00",
+  "condition_id": "en-none-cooperative",
+  "repetition": 0,
+  "coded_turns": [
+    {
+      "turn": 0,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "positive_politeness"
+    },
+    {
+      "turn": 1,
+      "role": "buyer",
+      "is_fta": true,
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 2,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 3,
+      "role": "buyer",
+      "is_fta": true,
+      "strategy": "positive_politeness"
+    },
+    {
+      "turn": 4,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 5,
+      "role": "buyer",
+      "is_fta": true,
+      "strategy": "positive_politeness"
+    },
+    {
+      "turn": 6,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 7,
+      "role": "buyer",
+      "is_fta": true,
+      "strategy": "positive_politeness"
+    },
+    {
+      "turn": 8,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 9,
+      "role": "buyer",
+      "is_fta": true,
+      "strategy": "positive_politeness"
+    }
+  ]
+}

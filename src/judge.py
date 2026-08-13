@@ -40,6 +40,7 @@ Transcript:
 """
 
 JUDGE_MODEL = "google/gemma-4-26b-a4b-it:free"  # different provider from the default Gemini negotiators
+JUDGED_RESULTS_DIR = Path(__file__).resolve().parent.parent / "results" / "judged"
 
 
 def format_transcript(turns: list[dict]) -> str:
@@ -68,13 +69,14 @@ def _load_transcript(path: Path) -> dict:
 
 
 def _default_output_path(input_path: Path) -> Path:
-    return input_path.with_name(f"{input_path.stem}_judged{input_path.suffix}")
+    return JUDGED_RESULTS_DIR / f"{input_path.stem}_judged{input_path.suffix}"
 
 
 def _write_judged_transcript(input_path: Path, transcript: dict, coded_turns: list[dict], judge_model: str) -> Path:
     output_path = _default_output_path(input_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "source_transcript": input_path.name,
+        "source_transcript": str(input_path),
         "judge_model": judge_model,
         "scenario_id": transcript.get("scenario_id"),
         "condition_id": transcript.get("condition_id"),
