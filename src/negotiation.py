@@ -16,8 +16,8 @@ BASE_PROMPT = {
         "seller": "You are negotiating to sell: {title} — {description}. Listing price: ${price}. Your target price: ${target}.",
     },
     "ko": {
-        "buyer": "당신은 다음 물건을 구매하기 위해 협상 중입니다: {title} — {description}. 정가: ${price}. 목표 가격: ${target}.",  # TODO: verify Korean
-        "seller": "당신은 다음 물건을 판매하기 위해 협상 중입니다: {title} — {description}. 정가: ${price}. 목표 가격: ${target}.",  # TODO: verify Korean
+        "buyer": "당신은 다음 물건을 구매하기 위해 협상 중입니다: {title} — {description}. 정가: ${price}. 목표 가격: ${target}.",
+        "seller": "당신은 다음 물건을 판매하기 위해 협상 중입니다: {title} — {description}. 정가: ${price}. 목표 가격: ${target}.",
     },
 }
 

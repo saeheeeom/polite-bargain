@@ -40,6 +40,25 @@ Description: {description}
 """
 
 
+# Free-tier cap observed for gemini-3.6-flash elsewhere in this project (see agents.py) —
+# this script calls the API directly rather than through call_agent(), so it needs its
+# own throttle to avoid tripping the same per-minute quota.
+GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5
+GEMINI_MIN_SECONDS_BETWEEN_CALLS = 60 / GEMINI_REQUESTS_PER_MINUTE_LIMIT
+
+_last_call_time = 0.0
+
+
+def _throttle() -> None:
+    import time
+
+    global _last_call_time
+    wait = _last_call_time + GEMINI_MIN_SECONDS_BETWEEN_CALLS - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _last_call_time = time.monotonic()
+
+
 def translate_scenario(title: str, description: str, max_retries: int = 4) -> dict:
     import re
     import time
@@ -48,6 +67,7 @@ def translate_scenario(title: str, description: str, max_retries: int = 4) -> di
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     for attempt in range(max_retries):
+        _throttle()
         try:
             response = client.models.generate_content(
                 model="gemini-3.6-flash",
@@ -61,6 +81,12 @@ def translate_scenario(title: str, description: str, max_retries: int = 4) -> di
             # 503 = transient overload on Google's end, not a bug in this code — retry with backoff
             wait = 2 ** attempt  # 1, 2, 4, 8 seconds
             print(f"  Server error (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {e}")
+            time.sleep(wait)
+        except errors.ClientError as e:
+            if getattr(e, "code", None) != 429 and "RESOURCE_EXHAUSTED" not in str(e):
+                raise
+            wait = GEMINI_MIN_SECONDS_BETWEEN_CALLS * (attempt + 1)
+            print(f"  Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait:.1f}s: {e}")
             time.sleep(wait)
     raise RuntimeError(f"Failed to translate {title!r} after {max_retries} retries")
 
