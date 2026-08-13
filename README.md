@@ -38,6 +38,28 @@ results/
 
 ## Running
 
+Recommended order for a fresh local run:
+
+```bash
+# 1. Install dependencies and set up API keys
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+cp .env.example .env
+
+# 2. Make sure scenarios are translated before Korean negotiation runs
+python -m src.translate_scenarios --dry-run --limit 1
+python -m src.translate_scenarios --limit 1
+
+# 3. Smoke-test the experiment planner, then run negotiations
+python -m src.run_experiment --dry-run --limit 1
+python -m src.run_experiment --limit 1
+
+# 4. Judge the saved transcripts
+python -m src.judge results/transcripts --dry-run --limit 1
+python -m src.judge results/transcripts --limit 1
+```
+
 ```bash
 # 1. Sample scenarios from CraigslistBargain (run once)
 python -m src.data_loader
