@@ -2,6 +2,9 @@ venv/
 .env
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 results/transcripts/*.json
+results/judged/*.json
 data/scenarios.json
 CLAUDE.md
