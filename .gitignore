@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-results/transcripts/*.json
-results/judged/*.json
+results/transcripts/**/*.json
+results/judged/**/*.json
 data/scenarios.json
 CLAUDE.md
