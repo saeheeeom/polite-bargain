@@ -14,17 +14,9 @@ import os
 import re
 import time
 from pathlib import Path
-from threading import Lock
 
 from dotenv import load_dotenv
 from openai import RateLimitError
-
-
-GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5
-GEMINI_MIN_SECONDS_BETWEEN_CALLS = 60 / GEMINI_REQUESTS_PER_MINUTE_LIMIT
-
-_gemini_call_lock = Lock()
-_gemini_next_allowed_time = 0.0
 
 
 def _load_api_keys() -> None:
@@ -101,22 +93,17 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
         parts=[types.Part(text="Continue the negotiation with your next turn.")],
     ))
 
-    def _wait_for_gemini_slot() -> None:
-        global _gemini_next_allowed_time
-        with _gemini_call_lock:
-            now = time.monotonic()
-            sleep_for = _gemini_next_allowed_time - now
-            if sleep_for > 0:
-                time.sleep(sleep_for)
-            _gemini_next_allowed_time = time.monotonic() + GEMINI_MIN_SECONDS_BETWEEN_CALLS
-
     def _is_rate_limit_error(exc: Exception) -> bool:
         status_code = getattr(exc, "status_code", None)
         return status_code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
 
+    # No pre-emptive pacing here: the hardcoded 5 RPM cap this used to enforce was
+    # specific to the free Gemini Developer API tier. Under Vertex AI's paid tier
+    # (billed against GCP credit, not a fixed free quota) the real limit is much
+    # higher and unknown ahead of time, so we just call, and back off on an actual
+    # 429 from the server instead of self-throttling below the real ceiling.
     last_error: Exception | None = None
     for attempt in range(6):
-        _wait_for_gemini_slot()
         try:
             response = client.models.generate_content(
                 model=model,
@@ -131,7 +118,7 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
             last_error = exc
             if not _is_rate_limit_error(exc) or attempt == 5:
                 raise
-            retry_delay = min(30.0, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (attempt + 1))
+            retry_delay = min(30.0, 2 ** attempt)
             time.sleep(retry_delay)
 
     raise last_error if last_error is not None else RuntimeError("Gemini request failed without a response")
