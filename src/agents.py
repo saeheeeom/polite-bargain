@@ -4,9 +4,10 @@ LLM API wrappers for the negotiating agents and the judge.
 Both providers are called through a single `call_agent()` function so the rest
 of the codebase doesn't care which provider is behind a given model name.
 
-NOT YET TESTED against live APIs in this sandbox (no network access to the
-provider endpoints here) — test with a single call before running the full
-experiment. A minimal smoke test is at the bottom of this file.
+Gemini calls go through Vertex AI using Application Default Credentials (ADC),
+not an API key — this project's GCP org disallows issuing Gemini API keys.
+Run `gcloud auth application-default login` and set GOOGLE_CLOUD_PROJECT before
+calling _call_gemini(). A minimal smoke test is at the bottom of this file.
 """
 import json
 import os
@@ -42,8 +43,9 @@ def _load_api_keys() -> None:
 
 _load_api_keys()
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
 # Which provider each model name routes to
 GEMINI_MODELS = {"gemini-3.6-flash", "gemini-3.6-flash-lite"}
@@ -83,7 +85,9 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(
+        vertexai=True, project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION,
+    )
 
     contents = [
         types.Content(
@@ -186,7 +190,8 @@ def parse_agent_response(raw: str) -> dict:
 
 if __name__ == "__main__":
     # Minimal smoke test — run this first, locally, before anything else.
-    # Requires GEMINI_API_KEY to be set in .env.
+    # Requires `gcloud auth application-default login` to have been run, and
+    # GOOGLE_CLOUD_PROJECT set in .env (Vertex AI API must be enabled on that project).
     test_system_prompt = (
         "You are a buyer in a price negotiation for a used bicycle listed at $100. "
         "Your target price is $70." + AGENT_RESPONSE_INSTRUCTIONS

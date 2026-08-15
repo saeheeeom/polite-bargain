@@ -65,7 +65,11 @@ def translate_scenario(title: str, description: str, max_retries: int = 4) -> di
     from google import genai
     from google.genai import errors
 
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ["GOOGLE_CLOUD_PROJECT"],
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+    )
     for attempt in range(max_retries):
         _throttle()
         try:
