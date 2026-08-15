@@ -22,10 +22,25 @@ politeness theory. For EACH turn in the transcript below, determine:
 1. is_fta: true if the turn is a Face-Threatening Act (a request, refusal, or other
    utterance that puts social pressure on the other party), false otherwise.
 2. strategy: if is_fta is true, classify the mitigation strategy as exactly one of:
-   - "bald_on_record": direct, no cushioning
-   - "positive_politeness": friendly framing, emphasizes closeness/goodwill
-   - "negative_politeness": cautious, deferential, apologetic, hedged
-   - "off_record": indirect, just a hint, not a direct ask
+   - "bald_on_record": the core request/refusal/assertion ITSELF is stated flatly,
+     with no hedging on the substance — even if the turn also contains a polite
+     opener or acknowledgment elsewhere. Example: "I appreciate the offer, but I'm
+     firm at $275, that's my bottom dollar." is bald_on_record: the price stance is
+     asserted with no softening ("maybe", "I wonder if", a question form) despite
+     the polite-sounding opener.
+   - "positive_politeness": friendly framing that appeals to shared interest or
+     closeness ("let's both walk away happy here", "I want this to work for you too").
+   - "negative_politeness": the core request/refusal ITSELF is hedged, indirect, or
+     deferential — e.g. "Would you possibly be willing to consider $150?" or "I don't
+     suppose you could go a little lower?". The hedge must be on the substance of the
+     ask, not just a polite opener like "thanks for reaching out."
+   - "off_record": indirect, just a hint, not a direct ask at all.
+
+   Judge the directness of the CORE request or assertion, not just whether the turn
+   contains any polite-sounding words. Do not default to negative_politeness just
+   because a turn's overall tone is courteous — a flatly-stated refusal or firm price
+   dressed in a polite opener is still bald_on_record.
+
    If is_fta is false, set strategy to null.
 
 Respond with ONLY a JSON array, one object per turn, in this shape:
@@ -39,7 +54,8 @@ Transcript:
 {transcript}
 """
 
-JUDGE_MODEL = "google/gemma-4-26b-a4b-it:free"  # different provider from the default Gemini negotiators
+JUDGE_MODEL = "qwen/qwen3.7-flash"  # different provider/family from the Gemini negotiators; paid tier
+# to avoid the OpenRouter free-model daily-request cap (see design_changes_log.md)
 JUDGED_RESULTS_DIR = Path(__file__).resolve().parent.parent / "results" / "judged"
 
 

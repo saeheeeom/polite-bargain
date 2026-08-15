@@ -45,6 +45,7 @@ OPENROUTER_MODELS = {
     "qwen/qwen3-coder:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-4-26b-a4b-it:free",
+    "qwen/qwen3.7-flash",  # paid, cheap (~$0.03/$0.13 per M tokens) — used as the judge model
 }
 
 
@@ -142,9 +143,12 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
 
 
 def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
+    import openai
     from openai import OpenAI
 
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+    # Explicit timeout so a stalled connection raises (and gets retried) instead of
+    # hanging indefinitely — the default client has no timeout of its own.
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, timeout=60.0)
     messages = _history_to_messages(system_prompt, history, self_role)
 
     def _retry_delay_from_error(exc: Exception, fallback_seconds: float) -> float:
@@ -153,16 +157,22 @@ def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_r
             return float(retry_after.group(1))
         return fallback_seconds
 
+    def _is_retryable_error(exc: Exception) -> bool:
+        if isinstance(exc, RateLimitError):
+            return True
+        # Covers stalled/reset connections and our own 60s client-side timeout.
+        return isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError, OSError))
+
     last_error: Exception | None = None
-    for attempt in range(4):
+    for attempt in range(6):
         try:
             completion = client.chat.completions.create(
                 model=model, messages=messages, temperature=temperature,
             )
             return completion.choices[0].message.content
-        except RateLimitError as exc:
+        except Exception as exc:
             last_error = exc
-            if attempt == 3:
+            if not _is_retryable_error(exc) or attempt == 5:
                 raise
             time.sleep(_retry_delay_from_error(exc, fallback_seconds=5.0 * (attempt + 1)))
 
