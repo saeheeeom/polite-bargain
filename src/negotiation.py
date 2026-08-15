@@ -8,7 +8,7 @@ from src.agents import AGENT_RESPONSE_INSTRUCTIONS, call_agent, parse_agent_resp
 from src.conditions import Condition
 from src.translations import get_persona_text, get_urgency_text
 
-MAX_TURNS = 10
+MAX_TURNS = 16
 
 BASE_PROMPT = {
     "en": {
