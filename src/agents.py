@@ -73,6 +73,12 @@ def _history_to_messages(system_prompt: str, history: list[dict], self_role: str
     return messages
 
 
+class _EmptyGeminiResponse(ValueError):
+    """Gemini returned a response with no text part (e.g. only a function_call
+    part, which happens occasionally with no tools declared) — retrying with a
+    fresh call usually gets real text back."""
+
+
 def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
     from google import genai
     from google.genai import types
@@ -93,15 +99,22 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
         parts=[types.Part(text="Continue the negotiation with your next turn.")],
     ))
 
-    def _is_rate_limit_error(exc: Exception) -> bool:
+    def _is_retryable_error(exc: Exception) -> bool:
+        # ConnectionResetError / socket-level drops (e.g. the machine went to sleep
+        # mid-request) are OSError subclasses in Python.
+        if isinstance(exc, (OSError, _EmptyGeminiResponse)):
+            return True
         status_code = getattr(exc, "status_code", None)
-        return status_code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+        if status_code == 429 or (isinstance(status_code, int) and 500 <= status_code < 600):
+            return True
+        return "RESOURCE_EXHAUSTED" in str(exc)
 
     # No pre-emptive pacing here: the hardcoded 5 RPM cap this used to enforce was
     # specific to the free Gemini Developer API tier. Under Vertex AI's paid tier
     # (billed against GCP credit, not a fixed free quota) the real limit is much
     # higher and unknown ahead of time, so we just call, and back off on an actual
-    # 429 from the server instead of self-throttling below the real ceiling.
+    # 429/5xx/connection error from the server instead of self-throttling below the
+    # real ceiling.
     last_error: Exception | None = None
     for attempt in range(6):
         try:
@@ -113,10 +126,14 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
                     temperature=temperature,
                 ),
             )
+            if response.text is None:
+                raise _EmptyGeminiResponse(
+                    f"Gemini response had no text part on attempt {attempt + 1}"
+                )
             return response.text
         except Exception as exc:  # google.genai raises provider-specific errors here
             last_error = exc
-            if not _is_rate_limit_error(exc) or attempt == 5:
+            if not _is_retryable_error(exc) or attempt == 5:
                 raise
             retry_delay = min(30.0, 2 ** attempt)
             time.sleep(retry_delay)
