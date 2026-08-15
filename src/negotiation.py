@@ -9,6 +9,7 @@ from src.conditions import Condition
 from src.translations import get_persona_text, get_urgency_text
 
 MAX_TURNS = 16
+MAX_PARSE_RETRIES = 3  # malformed JSON is rare but shouldn't discard turns already accumulated
 
 BASE_PROMPT = {
     "en": {
@@ -83,13 +84,23 @@ def run_negotiation(
     current_role, current_model, current_prompt = "seller", seller_model, seller_prompt
 
     for turn_num in range(MAX_TURNS):
-        raw = call_agent(current_model, current_prompt, history, self_role=current_role)
-        try:
-            parsed = parse_agent_response(raw)
-        except ValueError as e:
-            # Log and treat as an abandoned negotiation rather than crashing the whole run
+        parsed = None
+        parse_error: ValueError | None = None
+        raw = ""
+        for _attempt in range(MAX_PARSE_RETRIES):
+            raw = call_agent(current_model, current_prompt, history, self_role=current_role)
+            try:
+                parsed = parse_agent_response(raw)
+                parse_error = None
+                break
+            except ValueError as e:
+                parse_error = e
+
+        if parsed is None:
+            # Malformed JSON survived every retry — log and end this negotiation rather
+            # than crashing the whole run, but keep whatever turns were already collected.
             result.outcome = "parse_error"
-            result.turns.append({"role": current_role, "error": str(e), "raw": raw})
+            result.turns.append({"role": current_role, "error": str(parse_error), "raw": raw})
             return result
 
         turn_record = {
