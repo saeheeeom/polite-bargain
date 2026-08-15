@@ -14,7 +14,8 @@ cp .env.example .env       # then fill in your API keys
 
 You'll need:
 
-- `GEMINI_API_KEY` — free tier at https://ai.google.dev
+- Gemini access via Vertex AI + Application Default Credentials — **not** an API key,
+  our GCP org disallows issuing those. See [GEMINI_ADC_SETUP.md](GEMINI_ADC_SETUP.md).
 - `OPENROUTER_API_KEY` — https://openrouter.ai (free tier + optional $10 top-up for higher limits)
 
 ## Project structure
