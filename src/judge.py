@@ -108,6 +108,13 @@ def judge_path(path: Path, judge_model: str = JUDGE_MODEL, dry_run: bool = False
     transcript = _load_transcript(path)
     turns = transcript["turns"]
 
+    if transcript.get("outcome") == "parse_error":
+        # The final turn is an {role, error, raw} record with no utterance/action —
+        # negotiation.py's retries were exhausted, so this isn't a real completed
+        # negotiation and there's nothing meaningful to FTA-code.
+        print(f"Skipping {path.name}: outcome is parse_error, not a completed negotiation")
+        return None
+
     print(f"Transcript: {path.name} | turns: {len(turns)} | judge model: {judge_model}")
     if dry_run:
         print("[dry run] No API calls made.")
