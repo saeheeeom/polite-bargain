@@ -11,9 +11,14 @@ model(s) generated the negotiation, to avoid a model evaluating its own output.
 import argparse
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from tqdm import tqdm
+
 from src.agents import call_agent
+
+DEFAULT_WORKERS = 8
 
 JUDGE_INSTRUCTIONS = """
 You are a discourse analyst coding a negotiation transcript using Brown & Levinson's
@@ -148,6 +153,10 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="Only judge the first N transcripts in a directory")
     parser.add_argument("--dry-run", action="store_true", help="Report what would be judged, no API calls")
     parser.add_argument("--model", default=JUDGE_MODEL, help="Judge model slug to use")
+    parser.add_argument(
+        "--workers", type=int, default=DEFAULT_WORKERS,
+        help=f"Number of transcripts to judge concurrently (default {DEFAULT_WORKERS})",
+    )
     args = parser.parse_args()
 
     transcript_paths = _iter_transcript_paths(args.path)
@@ -158,9 +167,39 @@ def main() -> None:
         print(f"No transcript JSON files found at {args.path}")
         return
 
-    print(f"Found {len(transcript_paths)} transcript(s) to judge")
-    for transcript_path in transcript_paths:
-        judge_path(transcript_path, judge_model=args.model, dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"Found {len(transcript_paths)} transcript(s) to judge")
+        for transcript_path in transcript_paths:
+            judge_path(transcript_path, judge_model=args.model, dry_run=True)
+        return
+
+    # resume-safe: skip transcripts that already have a judged output file
+    pending = [p for p in transcript_paths if not _default_output_path(p).exists()]
+    already_done = len(transcript_paths) - len(pending)
+    print(f"Found {len(transcript_paths)} transcript(s) | already judged: {already_done} | "
+          f"pending: {len(pending)} | concurrency: {args.workers} workers")
+
+    failures: list[tuple[str, str]] = []
+    with tqdm(total=len(transcript_paths), initial=already_done) as pbar:
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = {
+                executor.submit(judge_path, path, args.model, False): path
+                for path in pending
+            }
+            for future in as_completed(futures):
+                path = futures[future]
+                try:
+                    future.result()
+                except Exception as exc:
+                    failures.append((path.name, str(exc)))
+                    print(f"FAILED {path.name}: {exc}")
+                pbar.update(1)
+
+    print(f"\nDone. {len(pending) - len(failures)}/{len(pending)} new transcripts judged.")
+    if failures:
+        print(f"{len(failures)} transcript(s) failed (re-run to retry, resume-safe):")
+        for name, err in failures:
+            print(f"  {name}: {err}")
 
 
 if __name__ == "__main__":
