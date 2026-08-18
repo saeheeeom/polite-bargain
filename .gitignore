@@ -1,5 +1,6 @@
 venv/
 .env
+.hf/
 __pycache__/
 *.pyc
 *.pyo
@@ -8,3 +9,7 @@ results/transcripts/**/*.json
 results/judged/**/*.json
 data/scenarios.json
 CLAUDE.md
+
+# Keep the analysis notebook, but ignore its generated outputs.
+!notebooks/full_experiment_analysis.ipynb
+results/analysis/
