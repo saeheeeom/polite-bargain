@@ -1,6 +1,5 @@
 venv/
 .env
-.hf/
 __pycache__/
 *.pyc
 *.pyo
@@ -13,3 +12,4 @@ CLAUDE.md
 # Keep the analysis notebook, but ignore its generated outputs.
 !notebooks/full_experiment_analysis.ipynb
 results/analysis/
+.hf/
