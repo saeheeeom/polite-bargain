@@ -77,6 +77,12 @@ factorial conditions:
 
 `12 scenarios x 12 conditions x 3 repetitions = 432 attempted negotiations`
 
+The notebook derives this expected count from the loaded scenario set, the
+declared factor levels, and the configured repetition count. It also discovers
+the valid and excluded counts from transcript outcomes rather than asserting
+that they must be 430 and 2. The values below are the results for the current
+dataset, not fixed assumptions in the analysis code.
+
 The scenario, rather than each generated transcript, is the central blocking
 unit for uncertainty. This prevents the analysis from pretending that 430
 generations based on only 12 underlying scenarios are 430 fully independent
@@ -347,9 +353,10 @@ transcript file whose recorded semantic outcome is `parse_error`.
 
 ### Cell 4: Load Design And Files
 
-**What it does:** Loads 12 scenarios, validates required fields and target
-spans, checks Korean fields, creates all 432 expected design keys, finds 432
-transcripts and 430 judged files, and defines file hashing helpers.
+**What it does:** Loads the scenarios, validates required fields and target
+spans, checks Korean fields, constructs the expected design keys from the
+loaded scenarios, factor levels, and repetition count, and defines file hashing
+helpers. For the current dataset this yields 432 expected transcript files.
 
 **Statistics:** File and design counts only.
 
@@ -371,8 +378,8 @@ analysis.
 **What it does:** Parses filename metadata and validates condition fields,
 repetitions, roles, alternation, allowed actions, prices, terminal actions,
 outcomes, final-price consistency, basic English/Korean script expectations,
-and one-to-one turn alignment with judged annotations. It separates the two
-semantic failures from completed transcripts.
+and one-to-one turn alignment with judged annotations. It discovers every
+semantic `parse_error` and excludes those keys without assuming their number.
 
 **Output:** 430 valid transcripts, 4,580 valid turns, and 430 aligned judged
 files produced by `qwen/qwen3.7-flash`.
@@ -383,8 +390,10 @@ files produced by `qwen/qwen3.7-flash`.
 
 ### Cell 7: QC Tables
 
-**What it does:** Displays total counts, counts for all 12 design cells, and the
-explicit exclusion table.
+**What it does:** Displays data-derived total counts, counts for all 12 design
+cells, and the explicit exclusion table. Cell checks require attempted runs to
+match the configured design and valid plus excluded runs to partition each
+cell; they do not hard-code the currently deficient cell.
 
 **Output:** 279 agreements, 118 abandonments, 33 turn-cap outcomes; 34 valid
 runs in `en-strong-headstrong` and 36 in every other cell.
@@ -409,8 +418,10 @@ builds buyer, seller, and overall pragmatic rows; calculates outcome indicators,
 terminal actor, openings, offer counts, concession measures, hardening, first
 concession timing, final gap, and pragmatic rates.
 
-**Checks:** Exactly 430 transcript rows, 1,290 pragmatic rows, seller openings
-equal 1, and all agreed prices lie within the target interval.
+**Checks:** One transcript row per valid key; buyer, seller, and overall
+pragmatic rows per valid transcript; seller openings equal 1; and all agreed
+prices lie within the target interval. This currently produces 430 transcript
+rows and 1,290 pragmatic rows.
 
 **Statistics:** Per-transcript metric construction, not group inference.
 
@@ -551,7 +562,8 @@ price, and negotiation length across language, urgency, and persona.
 
 **Statistics shown:** Scenario-balanced point estimates and 95% intervals.
 
-**Paper use:** `agreement_interactions` is the strongest main-paper figure.
+**Paper use:** In the final four-page manuscript, `agreement_interactions` is
+reported in the appendix beside the per-scenario agreement table.
 `final_price_interactions` needs a prominent conditional-on-agreement note.
 
 ### Cell 22: Mechanism Figures
@@ -930,10 +942,12 @@ agreement. A causal mediation claim would require a separate design and model.
 Include:
 
 - `pilot-scale`.
-- 432 attempted negotiations and 430 analyzed after two technical parse
-  failures.
+- 430 analyzed negotiations. Keep the two technical failures out of the
+  abstract and document 432 attempts, the exclusion rule, and both filenames in
+  Methods and the appendix.
 - The 2 x 2 x 3 design over 12 scenarios.
-- The +24.8-point Korean agreement effect with adjusted p = .0039.
+- The +24.8-point Korean-language minus English-language agreement contrast
+  with adjusted p = .0039.
 - The conditional agreed-price direction.
 - The seller-concession mechanism.
 - A restrained statement that language interacts with persona.
@@ -966,33 +980,42 @@ Include:
 
 ### Results Order
 
-1. Data flow and two exclusions.
-2. Agreement main effect and four corrected headline tests.
-3. Persona simple effects that explain the interactions.
-4. Conditional final price with a selection warning.
-5. Opening, concession, terminal-gap, and trajectory evidence.
-6. Negotiation length as a supporting result.
-7. Pragmatic realization as secondary description.
+1. Agreement contrast and four corrected headline tests.
+2. Persona simple effects that explain the interactions.
+3. Opening, concession, terminal-gap, and trajectory evidence.
+4. Negotiation length as a supporting result.
+5. Conditional final price with a selection warning.
+6. Pragmatic realization as secondary description.
+
+The data flow and two technical exclusions belong in Methods and the
+reproducibility appendix rather than leading the Results section.
 
 ### Main Figures
 
-Recommended order:
+Final four-page placement:
 
-1. `agreement_interactions.pdf`: primary outcome and core interaction story.
-2. `net_concessions_language_urgency.pdf`: clearest process explanation.
-3. One offer-trajectory figure if space allows.
-4. Conditional final price with an explicit agreement-only caption.
+1. `offer_trajectories_language_persona.pdf` is the main-body figure because it
+   shows how the agreement differences arise after similar buyer openings.
+2. `agreement_interactions.pdf` appears in the appendix with the per-scenario
+   agreement table.
+3. `pragmatic_rates_language_role.pdf` and
+   `politeness_strategy_composition.pdf` appear in the appendix, while their
+   central descriptive results remain in the main Results section.
 
-Move detailed pragmatics, the second trajectory view, buyer openings, and turn
-length to the appendix if the main paper is space constrained.
+The conditional price interaction, net-concession figure, buyer-opening figure,
+and turn-length figure remain notebook artifacts available for supplementary
+analysis. The main text reports their key numerical contrasts directly.
 
 ### Main Tables
 
-- Headline agreement contrasts, including exact and Holm-adjusted p-values.
-- Primary full-cell outcomes with valid-run, agreement, and scenario counts.
-- Key behavior contrasts for buyer opening, buyer net concession, seller net
-  concession, and terminal gap.
-- Pragmatics by language and role in the appendix.
+- Main Table 1 reports headline agreement contrasts, including corrected
+  exact-test p-values.
+- Appendix Table 2 reports agreement counts and rates separately for all 12
+  scenarios and both interaction languages.
+- Appendix Table 3 reports full-cell agreement, abandonment, turn-cap, and
+  conditional-price outcomes.
+- Appendix Tables 4 and 5 report judge-derived FTA, mitigation, and politeness
+  strategy summaries by language and role.
 
 ### Limitations
 
@@ -1099,23 +1122,28 @@ Each figure is saved as PNG and PDF:
 ## 11. Reproducibility And Rerun Checklist
 
 1. Run the notebook from the repository root with a clean kernel.
-2. Confirm it finds 432 transcript files and 430 judged files.
-3. Confirm exactly two semantic exclusions and 430 valid transcripts.
-4. Confirm the deficient `en-strong-headstrong` cell has 34 valid runs and all
-   other cells have 36.
-5. Confirm 4,580 validated turns and 430 one-to-one judge alignments.
+2. Confirm the expected grid is derived as 432 keys and all transcript keys
+   match that grid.
+3. Inspect the generated exclusion table; for the current dataset it contains
+   exactly two semantic failures and leaves 430 valid transcripts.
+4. Confirm valid plus excluded runs equal attempted runs in every cell; the
+   current `en-strong-headstrong` cell has 34 valid runs and all others have 36.
+5. Confirm 4,580 validated turns and one-to-one judge alignment for all 430
+   valid transcripts.
 6. Confirm all seller openings normalize to 1 and all agreed final prices fall
    between 0 and 1.
 7. Confirm all 44 generated artifacts are recreated.
 8. Re-run with seed 42 and compare deterministic tables, intervals, and input
    hashes in `quality_report.json`.
 
-During the original verification pass, all 862 transcript and judged JSON files
-decoded successfully, the notebook executed cleanly twice, and the aggregate
-derived CSV/JSON/Markdown hash matched across runs:
+During the current verification pass on 2026-08-18, all 862 transcript and
+judged JSON files decoded successfully. The notebook executed twice from clean
+kernels with seed 42. All 26 CSV, LaTeX, JSON, and Markdown artifacts had
+identical individual hashes across runs. Hashing their sorted relative paths
+and contents produced this aggregate SHA-256:
 
 ```text
-579c49541228cf21651673ab780ccfd59e4b28568891dd33550541964c911192
+f12b7058b0f59638553eb2b1a81d01b790b697f5df0632132bc378cb6b0e4fd9
 ```
 
 Because `results/analysis/` is intentionally ignored by Git, rerun the notebook

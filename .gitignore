@@ -13,3 +13,4 @@ CLAUDE.md
 !notebooks/full_experiment_analysis.ipynb
 results/analysis/
 .hf/
+paper/

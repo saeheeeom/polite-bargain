@@ -3,6 +3,7 @@ google-genai>=1.0.0
 openai>=1.30.0
 python-dotenv>=1.0.0
 jupyter>=1.0.0
+nbconvert>=7.16.0
 numpy>=1.26.0
 pandas>=2.2.0
 tqdm>=4.66.0
