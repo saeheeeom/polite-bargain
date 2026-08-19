@@ -35,6 +35,9 @@ DEFAULT_NEGOTIATION_MODELS = {
         "google/gemma-4-26b-a4b-it:free",
         "google/gemma-4-26b-a4b-it:free",
     ),
+    # generalizability check (old_research_statement.md line 91): rerun core
+    # results on a second negotiator model to see if the language effect holds.
+    "qwen": ("qwen/qwen3.7-flash", "qwen/qwen3.7-flash"),
 }
 
 
@@ -92,15 +95,23 @@ def main():
         "--workers", type=int, default=DEFAULT_WORKERS,
         help=f"Number of negotiations to run concurrently (default {DEFAULT_WORKERS})",
     )
+    parser.add_argument(
+        "--output-dir", type=Path, default=RESULTS_DIR,
+        help=f"Where to write transcripts (default {RESULTS_DIR}) — use a separate "
+             f"directory for a different negotiator model so it doesn't collide with "
+             f"(and get resume-skipped against) an existing dataset",
+    )
     args = parser.parse_args()
 
     scenarios = load_scenarios(limit=args.limit)
     conditions = all_conditions()
     buyer_model, seller_model = resolve_negotiation_models(args.provider)
+    results_dir = args.output_dir
 
     est = estimate_calls(len(scenarios), len(conditions), N_REPETITIONS)
     print(f"Scenarios: {len(scenarios)} | Conditions: {len(conditions)} | Repetitions: {N_REPETITIONS}")
     print(f"Negotiation provider: {args.provider} ({buyer_model}) | Concurrency: {args.workers} workers")
+    print(f"Output dir: {results_dir}")
     print(f"Estimated negotiations: {est['n_negotiations']}")
     print(f"Estimated total API calls: {est['total_calls']} "
           f"(~{est['negotiation_calls']} negotiation + {est['judge_calls']} judge)")
@@ -109,14 +120,14 @@ def main():
         print("\n[dry run] No API calls made.")
         return
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = []
     for scenario_idx, scenario in enumerate(scenarios):
         scenario_id = f"scenario-{scenario_idx:02d}"
         for condition in conditions:
             for rep in range(N_REPETITIONS):
-                out_path = RESULTS_DIR / f"{scenario_id}_{condition.id}_rep{rep}.json"
+                out_path = results_dir / f"{scenario_id}_{condition.id}_rep{rep}.json"
                 if out_path.exists():
                     continue  # resume-safe: skip already-completed runs
                 tasks.append((scenario_id, scenario, condition, rep, out_path))
@@ -144,7 +155,7 @@ def main():
                 pbar.update(1)
 
     print(f"\nDone. {len(tasks) - len(failures)}/{len(tasks)} new negotiations completed. "
-          f"Transcripts saved to {RESULTS_DIR}")
+          f"Transcripts saved to {results_dir}")
     if failures:
         print(f"{len(failures)} negotiation(s) failed and were NOT saved (re-run to retry, resume-safe):")
         for scenario_id, condition_id, rep, err in failures:
