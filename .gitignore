@@ -6,6 +6,7 @@ __pycache__/
 *.pyd
 results/transcripts/**/*.json
 results/judged/**/*.json
+results/transcripts_qwen/**/*.json
 data/scenarios.json
 CLAUDE.md
 
