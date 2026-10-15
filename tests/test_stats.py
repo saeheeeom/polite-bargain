@@ -88,3 +88,9 @@ def test_contract_issues_flags_open_model_quirks():
     assert contract_issues(turns, "agreed", 200) == ["accept_without_price"]
     turns = [_turn("seller", "offer", 200), _turn("buyer", "reject", 150)]
     assert contract_issues(turns, "abandoned", None) == ["reject_with_price"]
+
+
+def test_echo_turns_counts_copied_lines():
+    from harness.analysis.dataset import echo_turns
+    assert echo_turns(["I offer $200 for the bike", "I offer $200 for the bike!", "No, $150"]) == 1
+    assert echo_turns(["hello"]) == 0

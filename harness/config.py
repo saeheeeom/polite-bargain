@@ -28,6 +28,28 @@ class GenerationConfig:
     base_seed: int = 42
 
 
+MESSAGE_FORMATS = ("plain", "continue", "continue_json")
+
+
+@dataclass(frozen=True)
+class ProtocolConfig:
+    """How negotiation history is shown to the model on each turn.
+
+    plain:         system prompt + alternating utterances, nothing after the
+                   partner's last line (the paper's OpenRouter/Qwen path)
+    continue:      plain + a final user message asking for the next turn
+                   (the paper's Vertex/Gemini path)
+    continue_json: continue, but the model's own past turns are shown as the
+                   JSON it produced rather than just the utterance text
+    """
+
+    message_format: str = "plain"
+
+    def __post_init__(self):
+        if self.message_format not in MESSAGE_FORMATS:
+            raise ValueError(f"message_format must be one of {MESSAGE_FORMATS}")
+
+
 @dataclass(frozen=True)
 class DesignConfig:
     scenarios: str = "data/scenarios.json"
@@ -46,6 +68,7 @@ class RunConfig:
     name: str
     model: ModelConfig
     generation: GenerationConfig = GenerationConfig()
+    protocol: ProtocolConfig = ProtocolConfig()
     design: DesignConfig = DesignConfig()
     runtime: RuntimeConfig = RuntimeConfig()
 
@@ -63,6 +86,7 @@ def load_config(path: Path) -> RunConfig:
         name=raw["name"],
         model=ModelConfig(**raw["model"]),
         generation=GenerationConfig(**raw.get("generation", {})),
+        protocol=ProtocolConfig(**raw.get("protocol", {})),
         design=DesignConfig(**raw.get("design", {})),
         runtime=RuntimeConfig(**raw.get("runtime", {})),
     )

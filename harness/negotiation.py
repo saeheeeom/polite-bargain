@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import time
 
 import openai
@@ -19,6 +20,30 @@ from src.conditions import Condition
 from src.negotiation import _last_offered_price, build_system_prompt
 
 MAX_TRANSPORT_RETRIES = 5
+# Verbatim from src/agents.py::_call_gemini (English in both language conditions).
+CONTINUE_MESSAGE = "Continue the negotiation with your next turn."
+
+
+def build_messages(system_prompt: str, turns: list[dict], self_role: str, message_format: str) -> list[dict]:
+    """Chat messages for `self_role`'s next turn; see ProtocolConfig for the formats."""
+    if message_format == "continue_json":
+        history = [
+            {
+                "role": turn["role"],
+                "content": json.dumps(
+                    {key: turn[key] for key in ("utterance", "action", "price")}, ensure_ascii=False
+                )
+                if turn["role"] == self_role
+                else turn["utterance"],  # the partner only "hears" the words
+            }
+            for turn in turns
+        ]
+    else:
+        history = [{"role": turn["role"], "content": turn["utterance"]} for turn in turns]
+    messages = _history_to_messages(system_prompt, history, self_role=self_role)
+    if message_format != "plain":
+        messages.append({"role": "user", "content": CONTINUE_MESSAGE})
+    return messages
 
 
 def request_seed(base_seed: int, transcript_id: str, turn: int, attempt: int) -> int:
@@ -72,12 +97,11 @@ async def run_negotiation(
     prompts = {role: build_system_prompt(role, scenario, condition) for role in ("buyer", "seller")}
     turns: list[dict] = []
     calls: list[dict] = []
-    history: list[dict] = []
     outcome, final_price = "max_turns_reached", None
     role = "seller"  # seller opens, as in the paper
 
     for turn_num in range(config.design.max_turns):
-        messages = _history_to_messages(prompts[role], history, self_role=role)
+        messages = build_messages(prompts[role], turns, role, config.protocol.message_format)
         parsed, error, raw = None, None, ""
         for attempt in range(config.design.max_parse_retries):
             seed = request_seed(config.generation.base_seed, transcript_id, turn_num, attempt)
@@ -97,7 +121,6 @@ async def run_negotiation(
         turns.append(
             {"role": role, "utterance": parsed["utterance"], "action": parsed["action"], "price": parsed["price"]}
         )
-        history.append({"role": role, "content": parsed["utterance"]})
 
         if parsed["action"] == "accept":
             outcome, final_price = "agreed", _last_offered_price(turns)

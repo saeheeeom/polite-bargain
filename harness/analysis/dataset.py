@@ -8,6 +8,7 @@ the first one.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import math
 import re
@@ -67,6 +68,21 @@ def script_language(utterances: list[str]) -> str:
     if not any(has_hangul):
         return "en"
     return "mixed"
+
+
+ECHO_SIMILARITY = 0.8
+
+
+def echo_turns(utterances: list[str]) -> int:
+    """Turns that mostly repeat the previous turn's text (a degenerate copy loop).
+
+    Small models sometimes copy the partner's last line instead of replying;
+    such turns carry no negotiation behavior and are reported as a quality metric.
+    """
+    return sum(
+        difflib.SequenceMatcher(None, current, previous).ratio() > ECHO_SIMILARITY
+        for previous, current in zip(utterances, utterances[1:])
+    )
 
 
 def offer_metrics(turns: list[dict], role: str, buyer_target: float, span: float) -> dict:
@@ -187,7 +203,8 @@ def load_transcripts(transcripts_dir: Path, scenarios: pd.DataFrame) -> Transcri
         scenario = scenario_lookup[scenario_id]
         buyer_target, span = float(scenario["buyer_target"]), float(scenario["price_span"])
         final_price = payload.get("final_price")
-        spoken = script_language([turn.get("utterance", "") for turn in turns])
+        utterances = [turn.get("utterance", "") for turn in turns]
+        spoken = script_language(utterances)
         issues = contract_issues(turns, outcome, final_price)
 
         row = {
@@ -206,6 +223,8 @@ def load_transcripts(transcripts_dir: Path, scenarios: pd.DataFrame) -> Transcri
             ),
             "spoken_language": spoken,
             "language_compliant": spoken == language,
+            "echo_turns": echo_turns(utterances),
+            "first_turn_action": turns[0].get("action"),
             "contract_issues": ",".join(issues),
         }
         for role in ROLES:

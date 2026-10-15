@@ -93,3 +93,34 @@ def test_korean_condition_uses_korean_prompt():
 def test_request_seed_is_stable_and_position_dependent():
     assert request_seed(42, "a", 0, 0) == request_seed(42, "a", 0, 0)
     assert len({request_seed(42, "a", t, k) for t in range(4) for k in range(3)}) == 12
+
+
+def _config(message_format):
+    from harness.config import ProtocolConfig
+    return RunConfig(name="t", model=CONFIG.model, protocol=ProtocolConfig(message_format=message_format))
+
+
+def _buyer_messages(message_format):
+    client = FakeClient([reply("offer", 200, "Seller says hi"), reply("counter-offer", 150, "Buyer"), reply("accept", 150)])
+    asyncio.run(run_negotiation(client, _config(message_format), SCENARIO, "scenario-00",
+                                Condition("en", "none", "neutral"), 0))
+    return client.requests
+
+
+def test_continue_format_appends_turn_request():
+    requests = _buyer_messages("continue")
+    assert requests[0]["messages"][-1] == {"role": "user", "content": "Continue the negotiation with your next turn."}
+    assert requests[1]["messages"][-1]["content"] == "Continue the negotiation with your next turn."
+
+
+def test_continue_json_shows_own_turns_as_json_and_partner_as_text():
+    seller_turn2 = _buyer_messages("continue_json")[2]["messages"]
+    own, partner = seller_turn2[1], seller_turn2[2]
+    assert own["role"] == "assistant" and json.loads(own["content"])["price"] == 200
+    assert partner == {"role": "user", "content": "Buyer"}
+
+
+def test_unknown_message_format_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        _config("nope")
