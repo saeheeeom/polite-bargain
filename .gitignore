@@ -15,4 +15,6 @@ CLAUDE.md
 !notebooks/full_experiment_analysis.ipynb
 results/analysis/
 .hf/
-paper/
+# Harness outputs (transcripts are large and stay out of git, like the paper data)
+results/runs/
+logs/
