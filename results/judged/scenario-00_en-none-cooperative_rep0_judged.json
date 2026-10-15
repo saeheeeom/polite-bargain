@@ -1,6 +1,6 @@
 {
-  "source_transcript": "E:\\polite-bargain\\results\\transcripts\\scenario-00_en-none-cooperative_rep0.json",
-  "judge_model": "google/gemma-4-26b-a4b-it:free",
+  "source_transcript": "/Users/hong-gildong/Documents/GitHub/polite-bargain/results/transcripts/scenario-00_en-none-cooperative_rep0.json",
+  "judge_model": "qwen/qwen3.7-flash",
   "scenario_id": "scenario-00",
   "condition_id": "en-none-cooperative",
   "repetition": 0,
@@ -8,8 +8,8 @@
     {
       "turn": 0,
       "role": "seller",
-      "is_fta": true,
-      "strategy": "positive_politeness"
+      "is_fta": false,
+      "strategy": null
     },
     {
       "turn": 1,
@@ -21,49 +21,61 @@
       "turn": 2,
       "role": "seller",
       "is_fta": true,
-      "strategy": "negative_politeness"
+      "strategy": "bald_on_record"
     },
     {
       "turn": 3,
       "role": "buyer",
       "is_fta": true,
-      "strategy": "positive_politeness"
+      "strategy": "negative_politeness"
     },
     {
       "turn": 4,
       "role": "seller",
       "is_fta": true,
-      "strategy": "negative_politeness"
+      "strategy": "bald_on_record"
     },
     {
       "turn": 5,
       "role": "buyer",
       "is_fta": true,
-      "strategy": "positive_politeness"
+      "strategy": "negative_politeness"
     },
     {
       "turn": 6,
       "role": "seller",
       "is_fta": true,
-      "strategy": "negative_politeness"
+      "strategy": "bald_on_record"
     },
     {
       "turn": 7,
       "role": "buyer",
       "is_fta": true,
-      "strategy": "positive_politeness"
+      "strategy": "negative_politeness"
     },
     {
       "turn": 8,
       "role": "seller",
       "is_fta": true,
-      "strategy": "negative_politeness"
+      "strategy": "bald_on_record"
     },
     {
       "turn": 9,
       "role": "buyer",
       "is_fta": true,
-      "strategy": "positive_politeness"
+      "strategy": "negative_politeness"
+    },
+    {
+      "turn": 10,
+      "role": "seller",
+      "is_fta": true,
+      "strategy": "bald_on_record"
+    },
+    {
+      "turn": 11,
+      "role": "buyer",
+      "is_fta": false,
+      "strategy": null
     }
   ]
 }

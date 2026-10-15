@@ -4,26 +4,19 @@ LLM API wrappers for the negotiating agents and the judge.
 Both providers are called through a single `call_agent()` function so the rest
 of the codebase doesn't care which provider is behind a given model name.
 
-NOT YET TESTED against live APIs in this sandbox (no network access to the
-provider endpoints here) — test with a single call before running the full
-experiment. A minimal smoke test is at the bottom of this file.
+Gemini calls go through Vertex AI using Application Default Credentials (ADC),
+not an API key — this project's GCP org disallows issuing Gemini API keys.
+Run `gcloud auth application-default login` and set GOOGLE_CLOUD_PROJECT before
+calling _call_gemini(). A minimal smoke test is at the bottom of this file.
 """
 import json
 import os
 import re
 import time
 from pathlib import Path
-from threading import Lock
 
 from dotenv import load_dotenv
 from openai import RateLimitError
-
-
-GEMINI_REQUESTS_PER_MINUTE_LIMIT = 5
-GEMINI_MIN_SECONDS_BETWEEN_CALLS = 60 / GEMINI_REQUESTS_PER_MINUTE_LIMIT
-
-_gemini_call_lock = Lock()
-_gemini_next_allowed_time = 0.0
 
 
 def _load_api_keys() -> None:
@@ -42,8 +35,9 @@ def _load_api_keys() -> None:
 
 _load_api_keys()
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 
 # Which provider each model name routes to
 GEMINI_MODELS = {"gemini-3.6-flash", "gemini-3.6-flash-lite"}
@@ -51,6 +45,7 @@ OPENROUTER_MODELS = {
     "qwen/qwen3-coder:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-4-26b-a4b-it:free",
+    "qwen/qwen3.7-flash",  # paid, cheap (~$0.03/$0.13 per M tokens) — used as the judge model
 }
 
 
@@ -79,11 +74,19 @@ def _history_to_messages(system_prompt: str, history: list[dict], self_role: str
     return messages
 
 
+class _EmptyGeminiResponse(ValueError):
+    """Gemini returned a response with no text part (e.g. only a function_call
+    part, which happens occasionally with no tools declared) — retrying with a
+    fresh call usually gets real text back."""
+
+
 def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(
+        vertexai=True, project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION,
+    )
 
     contents = [
         types.Content(
@@ -97,22 +100,24 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
         parts=[types.Part(text="Continue the negotiation with your next turn.")],
     ))
 
-    def _wait_for_gemini_slot() -> None:
-        global _gemini_next_allowed_time
-        with _gemini_call_lock:
-            now = time.monotonic()
-            sleep_for = _gemini_next_allowed_time - now
-            if sleep_for > 0:
-                time.sleep(sleep_for)
-            _gemini_next_allowed_time = time.monotonic() + GEMINI_MIN_SECONDS_BETWEEN_CALLS
-
-    def _is_rate_limit_error(exc: Exception) -> bool:
+    def _is_retryable_error(exc: Exception) -> bool:
+        # ConnectionResetError / socket-level drops (e.g. the machine went to sleep
+        # mid-request) are OSError subclasses in Python.
+        if isinstance(exc, (OSError, _EmptyGeminiResponse)):
+            return True
         status_code = getattr(exc, "status_code", None)
-        return status_code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+        if status_code == 429 or (isinstance(status_code, int) and 500 <= status_code < 600):
+            return True
+        return "RESOURCE_EXHAUSTED" in str(exc)
 
+    # No pre-emptive pacing here: the hardcoded 5 RPM cap this used to enforce was
+    # specific to the free Gemini Developer API tier. Under Vertex AI's paid tier
+    # (billed against GCP credit, not a fixed free quota) the real limit is much
+    # higher and unknown ahead of time, so we just call, and back off on an actual
+    # 429/5xx/connection error from the server instead of self-throttling below the
+    # real ceiling.
     last_error: Exception | None = None
     for attempt in range(6):
-        _wait_for_gemini_slot()
         try:
             response = client.models.generate_content(
                 model=model,
@@ -122,21 +127,28 @@ def _call_gemini(model: str, system_prompt: str, history: list[dict], self_role:
                     temperature=temperature,
                 ),
             )
+            if response.text is None:
+                raise _EmptyGeminiResponse(
+                    f"Gemini response had no text part on attempt {attempt + 1}"
+                )
             return response.text
         except Exception as exc:  # google.genai raises provider-specific errors here
             last_error = exc
-            if not _is_rate_limit_error(exc) or attempt == 5:
+            if not _is_retryable_error(exc) or attempt == 5:
                 raise
-            retry_delay = min(30.0, GEMINI_MIN_SECONDS_BETWEEN_CALLS * (attempt + 1))
+            retry_delay = min(30.0, 2 ** attempt)
             time.sleep(retry_delay)
 
     raise last_error if last_error is not None else RuntimeError("Gemini request failed without a response")
 
 
 def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_role: str, temperature: float) -> str:
+    import openai
     from openai import OpenAI
 
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+    # Explicit timeout so a stalled connection raises (and gets retried) instead of
+    # hanging indefinitely — the default client has no timeout of its own.
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, timeout=60.0)
     messages = _history_to_messages(system_prompt, history, self_role)
 
     def _retry_delay_from_error(exc: Exception, fallback_seconds: float) -> float:
@@ -145,16 +157,22 @@ def _call_openrouter(model: str, system_prompt: str, history: list[dict], self_r
             return float(retry_after.group(1))
         return fallback_seconds
 
+    def _is_retryable_error(exc: Exception) -> bool:
+        if isinstance(exc, RateLimitError):
+            return True
+        # Covers stalled/reset connections and our own 60s client-side timeout.
+        return isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError, OSError))
+
     last_error: Exception | None = None
-    for attempt in range(4):
+    for attempt in range(6):
         try:
             completion = client.chat.completions.create(
                 model=model, messages=messages, temperature=temperature,
             )
             return completion.choices[0].message.content
-        except RateLimitError as exc:
+        except Exception as exc:
             last_error = exc
-            if attempt == 3:
+            if not _is_retryable_error(exc) or attempt == 5:
                 raise
             time.sleep(_retry_delay_from_error(exc, fallback_seconds=5.0 * (attempt + 1)))
 
@@ -186,7 +204,8 @@ def parse_agent_response(raw: str) -> dict:
 
 if __name__ == "__main__":
     # Minimal smoke test — run this first, locally, before anything else.
-    # Requires GEMINI_API_KEY to be set in .env.
+    # Requires `gcloud auth application-default login` to have been run, and
+    # GOOGLE_CLOUD_PROJECT set in .env (Vertex AI API must be enabled on that project).
     test_system_prompt = (
         "You are a buyer in a price negotiation for a used bicycle listed at $100. "
         "Your target price is $70." + AGENT_RESPONSE_INSTRUCTIONS
