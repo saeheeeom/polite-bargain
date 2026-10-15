@@ -30,10 +30,10 @@ export PATH="$PB_SCRATCH/vllm-venv/bin:$PATH"
 # matching vLLM's CUDA 13 build; PACE only has CUDA 12.x. Use PyTorch sampling.
 export VLLM_USE_FLASHINFER_SAMPLER=0
 
-read -r MODEL REVISION < <(uv run --no-sync python -c "
+read -r MODEL REVISION GEN_CONFIG < <(uv run --no-sync python -c "
 import sys
 from harness.config import load_config
-models = {(c.model.hf_id, c.model.revision) for c in map(load_config, sys.argv[1:])}
+models = {(c.model.hf_id, c.model.revision, c.model.generation_config) for c in map(load_config, sys.argv[1:])}
 assert len(models) == 1, f'configs name different models: {models}'
 print(*models.pop())" "${CONFIGS[@]}")
 
@@ -44,6 +44,7 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 # --seed fixes the engine's sampler state; per-request seeds come from the harness.
 "$PB_SCRATCH/vllm-venv/bin/vllm" serve "$MODEL" \
     --revision "$REVISION" \
+    --generation-config "$GEN_CONFIG" \
     --host 127.0.0.1 --port "$PORT" \
     --seed 42 \
     --max-model-len 8192 \

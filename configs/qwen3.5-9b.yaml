@@ -1,0 +1,26 @@
+# Paper-faithful run: the paper's 12 scenarios x 12 conditions x 3 reps with
+# Qwen/Qwen3.5-9B served locally by vLLM as both buyer and seller.
+# Message format and decoding match the paper's OpenRouter (Qwen) calls:
+# temperature only, no model sampling defaults, no added turn message.
+name: qwen3.5-9b
+model:
+  hf_id: Qwen/Qwen3.5-9B
+  revision: c202236235762e1c871ad0ccb60c8ee5ba337b9a
+  generation_config: vllm  # ignore generation_config.json sampling defaults
+  # The paper's API runs recorded no reasoning traces, so thinking is off
+  # (templates without a thinking switch ignore this).
+  chat_template_kwargs:
+    enable_thinking: false
+generation:
+  temperature: 0.2  # same as the paper
+  max_tokens: 512
+  base_seed: 42
+protocol:
+  message_format: plain  # the paper's OpenRouter path
+design:
+  scenarios: data/scenarios.json
+  n_repetitions: 3
+  max_turns: 16
+  max_parse_retries: 3
+runtime:
+  concurrency: 128  # negotiations in flight; vLLM batches their requests together

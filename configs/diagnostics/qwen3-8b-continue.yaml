@@ -3,6 +3,7 @@ name: qwen3-8b-continue
 model:
   hf_id: Qwen/Qwen3-8B
   revision: b968826d9c46dd6066d109eabc6255188de91218
+  generation_config: auto  # this diagnostic predates the paper-faithful setting
   # Qwen3 thinks by default; the paper's API runs used no reasoning traces, so it's off.
   chat_template_kwargs:
     enable_thinking: false

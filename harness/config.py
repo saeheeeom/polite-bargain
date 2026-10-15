@@ -19,6 +19,11 @@ class ModelConfig:
     hf_id: str
     revision: str
     chat_template_kwargs: dict = field(default_factory=dict)
+    # vLLM's --generation-config. "vllm" ignores the sampling defaults shipped in
+    # the model's generation_config.json (e.g. Qwen3's top_k=20, top_p=0.95), so
+    # only the parameters set here are applied, as with the paper's API calls,
+    # which set temperature alone. "auto" would apply the model's defaults.
+    generation_config: str = "vllm"
 
 
 @dataclass(frozen=True)
