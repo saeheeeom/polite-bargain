@@ -1,0 +1,22 @@
+[project]
+name = "polite-bargain"
+version = "0.2.0"
+description = "Cross-lingual LLM negotiation: paper code (src/) and the open-model eval harness (harness/)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.2",
+    "pandas>=2.3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "paper_data: needs the original (gitignored) transcripts under results/",
+]
