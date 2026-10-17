@@ -40,9 +40,16 @@ print(*models.pop())" "${CONFIGS[@]}")
 PORT=$((8000 + SLURM_JOB_ID % 1000))
 BASE_URL="http://127.0.0.1:$PORT/v1"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+# A process still holding this GPU means vLLM can't start ("CUDA devices busy
+# or unavailable"); say so up front instead of after a 5-minute startup.
+BUSY=$(nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader)
+[[ -z "$BUSY" ]] || { echo "GPU already in use on $(hostname): $BUSY"; exit 1; }
 
+# setsid gives the server its own process group. vLLM runs the engine in a
+# child process that holds the GPU; killing only the API server PID left that
+# child alive after the job, blocking the GPU for the next job on this node.
 # --seed fixes the engine's sampler state; per-request seeds come from the harness.
-"$PB_SCRATCH/vllm-venv/bin/vllm" serve "$MODEL" \
+setsid "$PB_SCRATCH/vllm-venv/bin/vllm" serve "$MODEL" \
     --revision "$REVISION" \
     --generation-config "$GEN_CONFIG" \
     --host 127.0.0.1 --port "$PORT" \
@@ -50,8 +57,17 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
     --max-model-len 8192 \
     --gpu-memory-utilization 0.90 \
     > "logs/vllm-$SLURM_JOB_ID.log" 2>&1 &
-SERVER_PID=$!
-trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+SERVER_PID=$!  # with setsid, also the process group id
+
+stop_server() {
+    kill -TERM -- -"$SERVER_PID" 2>/dev/null || return 0
+    for _ in $(seq 1 30); do
+        kill -0 -- -"$SERVER_PID" 2>/dev/null || return 0
+        sleep 1
+    done
+    kill -KILL -- -"$SERVER_PID" 2>/dev/null || true
+}
+trap stop_server EXIT
 
 # Startup includes loading weights, torch.compile and CUDA-graph capture; a
 # multimodal model like Gemma 4 took over 10 minutes on first launch.
