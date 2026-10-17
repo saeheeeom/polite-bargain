@@ -53,13 +53,26 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
 
-for _ in $(seq 1 120); do
+# Startup includes loading weights, torch.compile and CUDA-graph capture; a
+# multimodal model like Gemma 4 took over 10 minutes on first launch.
+for _ in $(seq 1 300); do
     curl -sf "http://127.0.0.1:$PORT/health" > /dev/null && break
     kill -0 $SERVER_PID 2>/dev/null || { echo "vLLM exited; see logs/vllm-$SLURM_JOB_ID.log"; exit 1; }
     sleep 5
 done
-curl -sf "http://127.0.0.1:$PORT/health" > /dev/null || { echo "vLLM not healthy after 10 min"; exit 1; }
+curl -sf "http://127.0.0.1:$PORT/health" > /dev/null || { echo "vLLM not healthy after 25 min"; exit 1; }
 
+STATUS=0
 for CONFIG in "${CONFIGS[@]}"; do
-    uv run --no-sync python -m harness.run "$CONFIG" --base-url "$BASE_URL" "$@"
+    uv run --no-sync python -m harness.run "$CONFIG" --base-url "$BASE_URL" "$@" || STATUS=1
 done
+
+# Opt-in (scripts/run_models.sh sets it): scratch can't hold every model's
+# weights at once, and a pinned revision re-downloads byte-identical. Only
+# delete after every config finished with no failed negotiations, so a retry
+# doesn't have to download again. Transcripts are always kept.
+if [[ "${PB_DELETE_WEIGHTS:-0}" == 1 && $STATUS == 0 && -n "$MODEL" ]]; then
+    rm -rf "$HF_HOME/hub/models--${MODEL//\//--}"
+    echo "Deleted weights for $MODEL"
+fi
+exit $STATUS

@@ -94,3 +94,18 @@ def test_echo_turns_counts_copied_lines():
     from harness.analysis.dataset import echo_turns
     assert echo_turns(["I offer $200 for the bike", "I offer $200 for the bike!", "No, $150"]) == 1
     assert echo_turns(["hello"]) == 0
+
+
+def test_factorial_contrasts_tolerate_conditions_without_data():
+    from harness.analysis.design import CONDITION_COLUMNS
+    from harness.analysis.stats import factorial_contrasts
+    rows = [
+        {"scenario_id": f"s{i}", **dict(zip(CONDITION_COLUMNS, c)), "agreed": int(c[0] == "en"),
+         "normalized_final_price": 0.5 if c[0] == "en" else np.nan}
+        for i in range(3) for c in CONDITIONS
+    ]
+    table = factorial_contrasts(pd.DataFrame(rows), ["s0", "s1", "s2"], metrics=["agreed", "normalized_final_price"])
+    price = table.query("metric == 'normalized_final_price' and contrast == 'language_ko_minus_en'").iloc[0]
+    assert np.isnan(price["estimate"])
+    agreed = table.query("metric == 'agreed' and contrast == 'language_ko_minus_en'").iloc[0]
+    assert agreed["estimate"] == pytest.approx(-1.0)

@@ -77,7 +77,7 @@ def write_atomic(path: Path, payload: dict) -> None:
     os.replace(tmp, path)
 
 
-async def run(config: RunConfig, base_url: str, limit: int | None) -> Path:
+async def run(config: RunConfig, base_url: str, limit: int | None) -> list[tuple[str, str]]:
     run_dir = ROOT / "results" / "runs" / f"{config.name}-{config.config_hash()}"
     out_dir = run_dir / "transcripts"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -143,7 +143,7 @@ async def run(config: RunConfig, base_url: str, limit: int | None) -> Path:
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
     })
     print(f"Done in {elapsed:.1f}s; {len(failures)} failed (rerun to retry). -> {run_dir}")
-    return run_dir
+    return failures
 
 
 def main() -> None:
@@ -152,7 +152,9 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://localhost:8000/v1")
     parser.add_argument("--limit", type=int, default=None, help="only the first N scenarios")
     args = parser.parse_args()
-    asyncio.run(run(load_config(args.config), args.base_url, args.limit))
+    failures = asyncio.run(run(load_config(args.config), args.base_url, args.limit))
+    # Non-zero exit tells the Slurm job the run is incomplete (so it keeps the weights).
+    raise SystemExit(1 if failures else 0)
 
 
 if __name__ == "__main__":

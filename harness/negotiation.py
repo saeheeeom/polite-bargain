@@ -14,6 +14,7 @@ import time
 
 import openai
 
+from harness.analysis.design import ALLOWED_ACTIONS, PRICE_ACTIONS
 from harness.config import RunConfig
 from src.agents import _history_to_messages, parse_agent_response
 from src.conditions import Condition
@@ -54,6 +55,26 @@ def request_seed(base_seed: int, transcript_id: str, turn: int, attempt: int) ->
     """
     payload = f"{base_seed}|{transcript_id}|{turn}|{attempt}".encode()
     return int.from_bytes(hashlib.sha256(payload).digest()[:4], "little") & 0x7FFFFFFF
+
+
+def action_violation(parsed: dict, turn_num: int) -> str | None:
+    """Why a parsed turn breaks the negotiation contract, or None if it doesn't.
+
+    These are the invariants the paper's analysis notebook asserted on the
+    Gemini data (first action is an offer, offers carry a positive price, only
+    the four actions exist); enforcing them at generation time means a
+    violating turn is regenerated like malformed JSON instead of ending a run.
+    """
+    action, price = parsed["action"], parsed["price"]
+    if action not in ALLOWED_ACTIONS:
+        return "unknown_action"
+    if turn_num == 0 and action != "offer":
+        return "opening_not_offer"
+    if action in PRICE_ACTIONS and not (
+        isinstance(price, (int, float)) and not isinstance(price, bool) and price > 0
+    ):
+        return "offer_without_price"
+    return None
 
 
 async def _generate(client: openai.AsyncOpenAI, config: RunConfig, messages: list[dict], seed: int) -> tuple[str, dict]:
@@ -109,9 +130,14 @@ async def run_negotiation(
             calls.append({"turn": turn_num, "attempt": attempt, "seed": seed, **call})
             try:
                 parsed = parse_agent_response(raw)
+                if config.protocol.validate_actions:
+                    violation = action_violation(parsed, turn_num)
+                    if violation:
+                        calls[-1]["violation"] = violation
+                        raise ValueError(f"protocol violation: {violation}")
                 break
             except ValueError as exc:  # json.JSONDecodeError is a ValueError
-                error = exc
+                parsed, error = None, exc
 
         if parsed is None:
             outcome = "parse_error"

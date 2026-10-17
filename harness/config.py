@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import MISSING, dataclass, field
 from pathlib import Path
 
 import yaml
@@ -49,6 +49,9 @@ class ProtocolConfig:
     """
 
     message_format: str = "plain"
+    # Regenerate turns that break the action contract (see
+    # harness.negotiation.action_violation) instead of accepting them.
+    validate_actions: bool = False
 
     def __post_init__(self):
         if self.message_format not in MESSAGE_FORMATS:
@@ -80,8 +83,27 @@ class RunConfig:
     def config_hash(self) -> str:
         # Runtime settings (concurrency) don't change outputs in intent, so they're
         # left out: re-running with more workers must still resume the same run.
-        identity = {key: value for key, value in asdict(self).items() if key != "runtime"}
+        # Fields left at their default are dropped too, so adding a new option
+        # with a backward-compatible default doesn't orphan existing runs.
+        identity = {
+            name: _non_default(getattr(self, name))
+            for name in ("name", "model", "generation", "protocol", "design")
+        }
         return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def _non_default(section):
+    if not hasattr(section, "__dataclass_fields__"):
+        return section
+    kept = {}
+    for name, spec in section.__dataclass_fields__.items():
+        value = getattr(section, name)
+        if spec.default is not MISSING and value == spec.default:
+            continue
+        if spec.default_factory is not MISSING and value == spec.default_factory():
+            continue
+        kept[name] = value
+    return kept
 
 
 def load_config(path: Path) -> RunConfig:

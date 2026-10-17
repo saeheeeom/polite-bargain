@@ -166,7 +166,13 @@ def factorial_contrasts(
     for metric in metrics:
         matrix = scenario_cell_matrix(transcripts, metric, scenario_ids)
         for name, weights in contrasts.items():
-            estimate, low, high, complete = bootstrap_contrast(matrix, weights, "factorial", metric, name)
+            try:
+                estimate, low, high, complete = bootstrap_contrast(matrix, weights, "factorial", metric, name)
+            except ValueError:
+                # A needed cell has no data, e.g. no agreements at all in some
+                # condition, so a conditional-price contrast is undefined.
+                estimate = low = high = np.nan
+                complete = 0
             headline = metric == "agreed" and name in HEADLINE_AGREEMENT_CONTRASTS
             rows.append(
                 {
@@ -177,7 +183,9 @@ def factorial_contrasts(
                     "ci_high": high,
                     "n_observations": int(transcripts[metric].notna().sum()),
                     "n_complete_scenarios": complete,
-                    "exact_p": exact_sign_flip_pvalue(matrix @ weights) if headline else np.nan,
+                    "exact_p": (
+                        exact_sign_flip_pvalue(matrix @ weights) if headline and complete == len(scenario_ids) else np.nan
+                    ),
                     "headline_test": headline,
                 }
             )

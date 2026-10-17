@@ -124,3 +124,30 @@ def test_unknown_message_format_rejected():
     import pytest
     with pytest.raises(ValueError):
         _config("nope")
+
+
+def _validated_config():
+    from harness.config import ProtocolConfig
+    return RunConfig(name="t", model=CONFIG.model, protocol=ProtocolConfig(validate_actions=True))
+
+
+def test_validation_regenerates_opening_accept():
+    client = FakeClient([reply("accept", 200), reply("offer", 200), reply("accept", 200)])
+    result = asyncio.run(run_negotiation(client, _validated_config(), SCENARIO, "scenario-00",
+                                         Condition("en", "none", "neutral"), 0))
+    assert [t["action"] for t in result["turns"]] == ["offer", "accept"]
+    assert result["calls"][0]["violation"] == "opening_not_offer"
+    assert result["calls"][1]["attempt"] == 1
+
+
+def test_validation_regenerates_priceless_counter_offer():
+    client = FakeClient([reply("offer", 200), reply("counter-offer", None), reply("counter-offer", 150), reply("accept", 150)])
+    result = asyncio.run(run_negotiation(client, _validated_config(), SCENARIO, "scenario-00",
+                                         Condition("en", "none", "neutral"), 0))
+    assert result["final_price"] == 150
+    assert [c.get("violation") for c in result["calls"]] == [None, "offer_without_price", None, None]
+
+
+def test_without_validation_opening_accept_ends_the_run():
+    result, _ = negotiate([reply("accept", 200)])
+    assert result["outcome"] == "agreed" and result["n_turns"] == 1

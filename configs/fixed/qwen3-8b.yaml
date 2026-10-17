@@ -1,0 +1,26 @@
+# Fixed-protocol counterpart of configs/qwen3-8b.yaml: same model and decoding, but
+# the message format and action validation that stop 8B models from breaking
+# the negotiation (copy loops, opening accepts). Compare against the paper run.
+name: qwen3-8b-fixed
+model:
+  hf_id: Qwen/Qwen3-8B
+  revision: b968826d9c46dd6066d109eabc6255188de91218
+  generation_config: vllm  # ignore generation_config.json sampling defaults
+  # The paper's API runs recorded no reasoning traces, so thinking is off
+  # (templates without a thinking switch ignore this).
+  chat_template_kwargs:
+    enable_thinking: false
+generation:
+  temperature: 0.2  # same as the paper
+  max_tokens: 512
+  base_seed: 42
+protocol:
+  message_format: continue_json  # own past turns as JSON + a turn request
+  validate_actions: true  # regenerate opening accepts, priceless offers, unknown actions
+design:
+  scenarios: data/scenarios.json
+  n_repetitions: 3
+  max_turns: 16
+  max_parse_retries: 3
+runtime:
+  concurrency: 128  # negotiations in flight; vLLM batches their requests together
